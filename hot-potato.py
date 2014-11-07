@@ -1,4 +1,5 @@
 import zulip
+import requests
 import os
 import random
 from random import randrange
@@ -6,9 +7,28 @@ from random import randrange
 # create a zulip client/bot
 client = zulip.Client(config_file = '.config', verbose = True)
 
-# subscribe to bot-test
-client.add_subscriptions([{u'stream_id': 26025, u'description': u'', u'name': u'bot-test', u'invite_only': False}])
+# call Zulip API to get all streams
+def get_zulip_streams():
+	response = requests.get(
+		'https://api.zulip.com/v1/streams',
+		auth=requests.auth.HTTPBasicAuth(os.environ['ZULIP_USERNAME'], os.environ['ZULIP_API_KEY'])
+	)
 
+	if response.status_code == 200:
+		return response.json()['streams']
+	elif response.status_code == 401:
+		raise RuntimeError('check authentication')
+	else:
+		raise RuntimeError('failed to get streams\n(%s)' % response)
+
+def subscribe_to_streams():
+	streams = [{'name' : stream['name']} for stream in get_zulip_streams()]
+	client.add_subscriptions(streams)
+
+# subscribe to all streams
+subscribe_to_streams()
+
+# class to handle events and send messages
 class PotatoHandler(object):
 	def __init__(self, client):
 		self.client = client
